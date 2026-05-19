@@ -1,0 +1,153 @@
+@import "tailwindcss";
+
+@source "../app";
+@source "../components";
+@source "../lib";
+
+/* Boston Asset Manager UI Kit — adapted from boston-ar/app/globals.css */
+:root {
+  --saas-primary: #1d3969;
+  --saas-accent: #2563eb;
+  --saas-light: #f8fafc;
+  --saas-border: #e2e8f0;
+  --saas-text: #374151;
+  --saas-muted: #64748b;
+  --saas-success: #059669;
+
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --radius: 0.625rem;
+}
+
+@theme inline {
+  --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  body {
+    background-color: var(--saas-light);
+    color: var(--saas-text);
+    font-family: var(--font-sans);
+  }
+}
+
+/* ═══ Boston card ═══ */
+.boston-card {
+  background: white;
+  border-radius: 16px;
+  padding: 40px 30px;
+  border: 1px solid var(--saas-border);
+  transition:
+    transform 250ms cubic-bezier(0.23, 1, 0.32, 1),
+    box-shadow 250ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .boston-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 35px rgba(29, 57, 105, 0.12);
+  }
+}
+
+/* ═══ Nav buttons ═══ */
+.nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 18px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  color: #ffffff !important;
+  text-decoration: none;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  transition:
+    transform 280ms cubic-bezier(0.23, 1, 0.32, 1),
+    box-shadow 280ms cubic-bezier(0.23, 1, 0.32, 1),
+    background 280ms ease,
+    border-color 280ms ease;
+}
+
+.nav-btn-glass {
+  background: rgba(29, 57, 105, 0.85);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.2) inset,
+    0 8px 24px -12px rgba(0, 0, 0, 0.4);
+}
+.nav-btn-glass:hover {
+  background: rgba(29, 57, 105, 0.95);
+  border-color: rgba(255, 255, 255, 0.45);
+  transform: translateY(-1px);
+}
+
+.nav-btn-solid {
+  background: linear-gradient(135deg, var(--saas-accent, #2563eb) 0%, #4f7cff 100%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.25) inset,
+    0 8px 20px -8px rgba(37, 99, 235, 0.6);
+}
+.nav-btn-solid:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.3) inset,
+    0 12px 28px -8px rgba(37, 99, 235, 0.75);
+}
+
+/* Status pills */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.pill-online { background: rgba(5, 150, 105, 0.12); color: var(--saas-success); }
+.pill-offline { background: rgba(217, 66, 51, 0.12); color: #d94233; }
+.pill-pending { background: rgba(37, 99, 235, 0.12); color: var(--saas-accent); }
+.pill-published { background: rgba(5, 150, 105, 0.12); color: var(--saas-success); }
