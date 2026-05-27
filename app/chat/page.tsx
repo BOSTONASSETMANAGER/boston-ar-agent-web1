@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import ChatComposer from '@/components/chat/ChatComposer'
+import LogoutButton from '@/components/LogoutButton'
 
 export default async function ChatPage() {
   const supabase = await createClient()
@@ -9,13 +11,19 @@ export default async function ChatPage() {
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold" style={{ color: 'var(--saas-primary)' }}>
-          Nuevo análisis
-        </h1>
-        <p className="mt-1 text-sm" style={{ color: 'var(--saas-muted)' }}>
-          Sube un archivo financiero e indícale al agente qué analizar.
-        </p>
+      <header className="mb-8 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold" style={{ color: 'var(--saas-primary)' }}>
+            Nuevo análisis
+          </h1>
+          <p className="mt-1 text-sm" style={{ color: 'var(--saas-muted)' }}>
+            Sube un archivo financiero e indícale al agente qué analizar.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Link href="/" className="nav-btn nav-btn-glass">Dashboard</Link>
+          <LogoutButton />
+        </div>
       </header>
       <ChatComposer />
     </main>

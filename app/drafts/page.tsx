@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { createAgentDBClient } from '@/lib/agent-db/server'
+import LogoutButton from '@/components/LogoutButton'
 import { statusMeta } from '@/lib/draft-status'
 
 type Draft = {
@@ -47,7 +48,11 @@ export default async function DraftsPage() {
             {drafts.length === 0 ? 'Sin drafts todavía' : `${drafts.length} draft${drafts.length === 1 ? '' : 's'}`}
           </p>
         </div>
-        <Link href="/chat" className="nav-btn nav-btn-solid">Nuevo análisis</Link>
+        <div className="flex items-center gap-3">
+          <Link href="/" className="nav-btn nav-btn-glass">Dashboard</Link>
+          <Link href="/chat" className="nav-btn nav-btn-solid">Nuevo análisis</Link>
+          <LogoutButton />
+        </div>
       </header>
 
       {loadError && (

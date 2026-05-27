@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { createAgentDBClient } from '@/lib/agent-db/server'
 import AgentStatus from '@/components/AgentStatus'
+import LogoutButton from '@/components/LogoutButton'
 import { statusMeta } from '@/lib/draft-status'
 
 type Draft = {
@@ -54,6 +55,7 @@ export default async function DashboardPage() {
           <AgentStatus />
           <Link href="/drafts" className="nav-btn nav-btn-glass">Ver todos</Link>
           <Link href="/chat" className="nav-btn nav-btn-solid">Nuevo análisis</Link>
+          <LogoutButton />
         </div>
       </header>
 
