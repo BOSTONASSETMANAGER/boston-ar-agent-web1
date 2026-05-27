@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { createHash } from 'crypto'
 import { createClient } from '@/lib/supabase/server'
 import { createAgentDBClient } from '@/lib/agent-db/server'
@@ -6,7 +6,7 @@ import { callAgent } from '@/lib/agent-client'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-export const maxDuration = 300
+export const maxDuration = 30
 
 const DEDUP_WINDOW_MIN = 5
 
@@ -24,45 +24,6 @@ async function requireAuthedRole() {
     return { error: 'forbidden' as const, user, role }
   }
   return { error: null, user, role }
-}
-
-function sseEvent(obj: unknown): string {
-  return `data: ${JSON.stringify(obj)}\n\n`
-}
-
-async function saveErrorDraft(params: {
-  user_id: string
-  fileName: string
-  fileType: 'pdf' | 'csv' | null
-  category: string
-  message: string
-  source_hash: string | null
-}): Promise<string | null> {
-  try {
-    const db = createAgentDBClient()
-    const { data, error } = await db
-      .from('agent_drafts')
-      .insert({
-        author_id: params.user_id,
-        title: `Error generando (${params.fileName})`,
-        category: params.category,
-        source_file_name: params.fileName,
-        source_file_type: params.fileType,
-        source_hash: params.source_hash,
-        status: 'error',
-        error_message: params.message.slice(0, 2000),
-      })
-      .select('id')
-      .single()
-    if (error) {
-      console.error('[analyze] failed to persist error draft:', error)
-      return null
-    }
-    return data?.id ?? null
-  } catch (e) {
-    console.error('[analyze] exception persisting error draft:', e)
-    return null
-  }
 }
 
 export async function POST(req: NextRequest) {
@@ -98,10 +59,11 @@ export async function POST(req: NextRequest) {
 
   const db = createAgentDBClient()
 
+  // 1) Dedup window check
   const sinceIso = new Date(Date.now() - DEDUP_WINDOW_MIN * 60 * 1000).toISOString()
   const { data: dupRows } = await db
     .from('agent_drafts')
-    .select('id, status, title')
+    .select('id, status')
     .eq('author_id', user.id)
     .eq('source_hash', sourceHash)
     .gte('created_at', sinceIso)
@@ -110,200 +72,79 @@ export async function POST(req: NextRequest) {
   const dup = Array.isArray(dupRows) && dupRows.length > 0 ? dupRows[0] : null
 
   if (dup) {
-    const dupStream = new ReadableStream({
-      start(controller) {
-        const enc = new TextEncoder()
-        controller.enqueue(
-          enc.encode(
-            sseEvent({
-              type: 'dedup_hit',
-              draft_id: dup.id,
-              status: dup.status,
-              title: dup.title,
-              window_minutes: DEDUP_WINDOW_MIN,
-            }),
-          ),
-        )
-        controller.enqueue(enc.encode(sseEvent({ type: 'draft_saved', draft_id: dup.id, status: dup.status })))
-        controller.close()
-      },
-    })
-    return new Response(dupStream, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache, no-transform',
-        'Connection': 'keep-alive',
-        'X-Accel-Buffering': 'no',
-      },
-    })
+    return NextResponse.json(
+      { draft_id: dup.id, status: dup.status, deduped: true },
+      { status: 200 },
+    )
   }
 
+  // 2) Insert placeholder draft in 'processing' state
+  const { data: draft, error: insertErr } = await db
+    .from('agent_drafts')
+    .insert({
+      author_id: user.id,
+      title: `Procesando ${fileName}…`,
+      category,
+      source_file_name: fileName,
+      source_file_type: fileType,
+      source_hash: sourceHash,
+      status: 'processing',
+    })
+    .select('id')
+    .single()
+
+  if (insertErr || !draft?.id) {
+    console.error('[analyze] failed to insert processing draft:', insertErr)
+    return NextResponse.json(
+      { error: `no se pudo crear el draft: ${insertErr?.message ?? 'unknown'}` },
+      { status: 500 },
+    )
+  }
+
+  const draftId = draft.id as string
+
+  // 3) Build upstream form (must await blob construction *before* returning)
   const upstreamForm = new FormData()
   upstreamForm.append('file', new Blob([fileBuf]), fileName)
   upstreamForm.append('instruction', typeof instruction === 'string' ? instruction : '')
   upstreamForm.append('category', category)
   upstreamForm.append('user_id', user.id)
+  upstreamForm.append('draft_id', draftId)
 
-  let upstream: Response
-  try {
-    upstream = await callAgent('/analyze/stream', { method: 'POST', body: upstreamForm })
-  } catch (e) {
-    const msg = `no se pudo contactar al agente: ${String(e).slice(0, 400)}`
-    const errId = await saveErrorDraft({
-      user_id: user.id,
-      fileName,
-      fileType,
-      category,
-      message: msg,
-      source_hash: sourceHash,
-    })
-    return NextResponse.json({ error: msg, draft_id: errId }, { status: 502 })
-  }
-
-  if (!upstream.ok || !upstream.body) {
-    const text = await upstream.text().catch(() => '')
-    const msg = `agente respondió ${upstream.status}: ${text.slice(0, 500)}`
-    const errId = await saveErrorDraft({
-      user_id: user.id,
-      fileName,
-      fileType,
-      category,
-      message: msg,
-      source_hash: sourceHash,
-    })
-    return NextResponse.json({ error: msg, draft_id: errId }, { status: 502 })
-  }
-
-  const reader = upstream.body.getReader()
-  const decoder = new TextDecoder()
-  const encoder = new TextEncoder()
-
-  let finalResult: Record<string, unknown> | null = null
-  let streamError: string | null = null
-  let buffered = ''
-
-  const stream = new ReadableStream({
-    async start(controller) {
-      try {
-        while (true) {
-          const { value, done } = await reader.read()
-          if (done) break
-          const chunk = decoder.decode(value, { stream: true })
-          buffered += chunk
-          const parts = buffered.split('\n\n')
-          buffered = parts.pop() || ''
-          for (const p of parts) {
-            if (!p) continue
-            const dataLine = p.split('\n').find((l) => l.startsWith('data: '))
-            if (dataLine) {
-              try {
-                const evt = JSON.parse(dataLine.slice(6))
-                if (evt && typeof evt === 'object') {
-                  if (evt.type === 'result') finalResult = evt
-                  if (evt.type === 'error') streamError = String(evt.message || 'error desconocido')
-                }
-              } catch {
-                /* ignore */
-              }
-            }
-            controller.enqueue(encoder.encode(p + '\n\n'))
-          }
-        }
-        if (buffered) {
-          const dataLine = buffered.split('\n').find((l) => l.startsWith('data: '))
-          if (dataLine) {
-            try {
-              const evt = JSON.parse(dataLine.slice(6))
-              if (evt?.type === 'result') finalResult = evt
-              if (evt?.type === 'error') streamError = String(evt.message || 'error desconocido')
-            } catch {
-              /* ignore */
-            }
-          }
-          controller.enqueue(encoder.encode(buffered))
-        }
-      } catch (e) {
-        streamError = `stream interrumpido: ${String(e).slice(0, 300)}`
-        controller.enqueue(encoder.encode(sseEvent({ type: 'error', message: streamError })))
-      } finally {
-        let draftId: string | null = null
-        let draftStatus: string | null = null
-        const html = finalResult
-          ? (finalResult.html_content as string | undefined) || (finalResult.draft_html as string | undefined) || ''
-          : ''
-
+  // 4) Fire-and-forget kickoff. `after()` keeps the runtime alive after the
+  // response is flushed so the upstream fetch isn't cancelled mid-flight.
+  // The agent is responsible for writing the final result back to Supabase
+  // (matching on draft_id), so we don't await/read the response body here.
+  after(async () => {
+    try {
+      const resp = await callAgent('/analyze/stream', {
+        method: 'POST',
+        body: upstreamForm,
+      })
+      // Drain the body briefly to avoid keep-alive leaks; we don't parse it.
+      // The agent writes results directly to the DB via draft_id.
+      if (resp.body) {
+        const reader = resp.body.getReader()
+        // Best-effort: read until done, ignoring contents.
+        // Wrapped in its own try so a stream error doesn't crash the runtime.
         try {
-          if (finalResult && html) {
-            const { data: draft, error } = await db
-              .from('agent_drafts')
-              .insert({
-                author_id: user.id,
-                title: (finalResult.title as string | undefined) ?? 'Sin título',
-                slug: (finalResult.slug as string | undefined) ?? null,
-                excerpt: (finalResult.excerpt as string | undefined) ?? null,
-                category: (finalResult.category as string | undefined) ?? category,
-                html_content: html,
-                source_file_name: fileName,
-                source_file_type: fileType,
-                source_hash: sourceHash,
-                agent_session_id: (finalResult.session_id as string | undefined) ?? null,
-                chat_history: [],
-                status: 'pending_review',
-              })
-              .select('id, status')
-              .single()
-            if (error) {
-              controller.enqueue(
-                encoder.encode(sseEvent({ type: 'error', message: `db insert error: ${error.message}` })),
-              )
-            } else if (draft) {
-              draftId = draft.id
-              draftStatus = draft.status
-            }
-          } else {
-            const msg =
-              streamError ||
-              (finalResult
-                ? 'el agente completó el request pero no produjo HTML válido'
-                : 'el agente cerró el stream sin emitir resultado')
-            const errId = await saveErrorDraft({
-              user_id: user.id,
-              fileName,
-              fileType,
-              category,
-              message: msg,
-              source_hash: sourceHash,
-            })
-            draftId = errId
-            draftStatus = 'error'
+          // eslint-disable-next-line no-constant-condition
+          while (true) {
+            const { done } = await reader.read()
+            if (done) break
           }
-        } catch (e) {
-          controller.enqueue(
-            encoder.encode(sseEvent({ type: 'error', message: `db exception: ${String(e).slice(0, 300)}` })),
-          )
+        } catch (streamErr) {
+          console.error('[analyze] upstream stream drain error:', streamErr)
         }
-
-        controller.enqueue(
-          encoder.encode(
-            sseEvent({
-              type: 'draft_saved',
-              draft_id: draftId,
-              status: draftStatus,
-              ok: draftStatus !== 'error' && draftStatus !== null,
-            }),
-          ),
-        )
-        controller.close()
       }
-    },
+    } catch (e) {
+      console.error('[analyze] upstream kickoff failed:', e)
+    }
   })
 
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-transform',
-      'Connection': 'keep-alive',
-      'X-Accel-Buffering': 'no',
-    },
-  })
+  // 5) Return immediately
+  return NextResponse.json(
+    { draft_id: draftId, status: 'processing', deduped: false },
+    { status: 202 },
+  )
 }

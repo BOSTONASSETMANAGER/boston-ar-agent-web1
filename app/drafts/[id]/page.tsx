@@ -5,10 +5,13 @@ import DraftPreviewClient from '@/components/preview/DraftPreviewClient'
 
 export default async function DraftDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ deduped?: string }>
 }) {
   const { id } = await params
+  const { deduped } = await searchParams
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect(`/login?redirect=/drafts/${id}`)
@@ -27,5 +30,5 @@ export default async function DraftDetailPage({
   // Full-bleed: no max-w container aquí para no aplastar el `width:100vw` del
   // template editorial. Las acciones (título + publicar) viven en el header
   // adentro de DraftPreviewClient con su propio contenedor.
-  return <DraftPreviewClient draft={draft} />
+  return <DraftPreviewClient draft={draft} deduped={deduped === '1'} />
 }
