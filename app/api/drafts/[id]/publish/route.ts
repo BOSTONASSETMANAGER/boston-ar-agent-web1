@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createSSRClient } from '@/lib/supabase/server'
 import { createAgentDBClient } from '@/lib/agent-db/server'
 import { createClient } from '@supabase/supabase-js'
-import { CATEGORIES, CATEGORY_POLICY, type Category } from '@/lib/categories'
+import { AUTHORS, CATEGORIES, CATEGORY_POLICY, getDefaultAuthor, type Author, type Category } from '@/lib/categories'
 
 function slugify(input: string) {
   return input
@@ -15,8 +15,20 @@ function slugify(input: string) {
     .slice(0, 80)
 }
 
-export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+
+  // Override opcional del autor desde el body — si no viene, usamos el default
+  // por categoría definido en lib/categories.ts.
+  let bodyAuthor: string | null = null
+  try {
+    const body = await req.json().catch(() => null)
+    if (body && typeof body.authorName === 'string') {
+      bodyAuthor = body.authorName.trim() || null
+    }
+  } catch {
+    bodyAuthor = null
+  }
 
   const sb = await createSSRClient()
   const { data: { user } } = await sb.auth.getUser()
@@ -51,6 +63,12 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   }
   const access_level = CATEGORY_POLICY[category]
 
+  // Resolver author_name: override del body si es uno de los autores conocidos
+  // o texto libre no vacío; fallback al default por categoría.
+  const author_name: string = bodyAuthor
+    ? ((AUTHORS as readonly string[]).includes(bodyAuthor) ? (bodyAuthor as Author) : bodyAuthor)
+    : getDefaultAuthor(category)
+
   // 2) Insert into boston-ar posts with service role
   const bostonUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const bostonServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -79,6 +97,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       access_level,
       published: true,
       author_id: user.id,
+      author_name,
     })
     .select('id, slug')
     .single()

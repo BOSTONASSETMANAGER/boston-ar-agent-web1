@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { statusMeta } from '@/lib/draft-status'
+import { AUTHORS, AUTHOR_BY_CATEGORY, isCategory } from '@/lib/categories'
 
 type Draft = {
   id: string
@@ -20,11 +21,23 @@ export default function DraftPreviewClient({ draft }: { draft: Draft }) {
   const [publishing, setPublishing] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const defaultAuthor = useMemo(() => {
+    if (draft.category && isCategory(draft.category)) {
+      return AUTHOR_BY_CATEGORY[draft.category]
+    }
+    return AUTHORS[0]
+  }, [draft.category])
+  const [authorName, setAuthorName] = useState<string>(defaultAuthor)
+
   async function publish() {
     setPublishing(true)
     setError(null)
     try {
-      const res = await fetch(`/api/drafts/${draft.id}/publish`, { method: 'POST' })
+      const res = await fetch(`/api/drafts/${draft.id}/publish`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ authorName }),
+      })
       if (!res.ok) {
         const j = await res.json().catch(() => ({}))
         throw new Error(j.error || `Error ${res.status}`)
@@ -77,13 +90,27 @@ export default function DraftPreviewClient({ draft }: { draft: Draft }) {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <span
               className="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider"
               style={{ background: s.bg, color: s.fg, borderColor: s.border }}
             >
               {s.label}
             </span>
+            <label className="flex items-center gap-2 text-xs" style={{ color: 'var(--saas-muted)' }}>
+              <span className="uppercase tracking-wider">Autor</span>
+              <select
+                value={authorName}
+                onChange={(e) => setAuthorName(e.target.value)}
+                disabled={publishing || draft.status === 'published'}
+                className="rounded-md border px-2 py-1 text-xs font-medium"
+                style={{ borderColor: 'var(--saas-border)', color: 'var(--saas-primary)', background: '#fff' }}
+              >
+                {AUTHORS.map((a) => (
+                  <option key={a} value={a}>{a}</option>
+                ))}
+              </select>
+            </label>
             <button
               onClick={publish}
               disabled={publishing || draft.status === 'published' || !html}
