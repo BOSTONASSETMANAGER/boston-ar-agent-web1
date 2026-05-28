@@ -66,6 +66,12 @@ export function isCategory(v: unknown): v is Category {
   return typeof v === 'string' && (CATEGORIES as readonly string[]).includes(v)
 }
 
+export const DUAL_CATEGORIES: readonly Category[] = ['renta-variable', 'valor-razonable', 'instrumento-del-dia'] as const
+
+export function isDualCategory(c: Category | ''): boolean {
+  return DUAL_CATEGORIES.includes(c as Category)
+}
+
 // Lista canónica de autores del equipo de research. Mantener en sync con
 // `boston-ar/supabase/migrations/009_post_authors.sql` y con cualquier UI
 // que muestre el crédito al pie del informe.

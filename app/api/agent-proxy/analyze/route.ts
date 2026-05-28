@@ -10,6 +10,8 @@ export const maxDuration = 30
 
 const DEDUP_WINDOW_MIN = 5
 
+const DUAL_CATEGORIES = ['renta-variable', 'valor-razonable', 'instrumento-del-dia'] as const
+
 async function requireAuthedRole() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -37,25 +39,68 @@ export async function POST(req: NextRequest) {
   const user = auth.user!
 
   const fd = await req.formData()
-  const file = fd.get('file')
   const instruction = fd.get('instruction')
   const category = fd.get('category')
-  if (!(file instanceof Blob)) {
-    return NextResponse.json({ error: 'file es requerido' }, { status: 400 })
-  }
   if (typeof category !== 'string' || !category) {
     return NextResponse.json({ error: 'category es requerido' }, { status: 400 })
   }
 
-  const fileName = (file as File).name || 'upload.bin'
-  const fileType: 'pdf' | 'csv' | null = fileName.toLowerCase().endsWith('.csv')
-    ? 'csv'
-    : fileName.toLowerCase().endsWith('.pdf')
-      ? 'pdf'
-      : null
+  const isDual = (DUAL_CATEGORIES as readonly string[]).includes(category)
 
-  const fileBuf = Buffer.from(await file.arrayBuffer())
-  const sourceHash = createHash('sha256').update(fileBuf).digest('hex')
+  // --- Dual-file path ---
+  let fileBuf: Buffer
+  let sourceHash: string
+  let fileName: string
+  let fileType: 'pdf' | 'csv' | null
+  let upstreamForm: FormData
+
+  if (isDual) {
+    const fileFree = fd.get('file_free')
+    const filePaid = fd.get('file_paid')
+    if (!(fileFree instanceof Blob) || !(filePaid instanceof Blob)) {
+      return NextResponse.json(
+        { error: 'file_free y file_paid son requeridos para informes duales' },
+        { status: 400 },
+      )
+    }
+    const freeName = (fileFree as File).name || 'free.bin'
+    const paidName = (filePaid as File).name || 'paid.bin'
+    const freeBuf = Buffer.from(await fileFree.arrayBuffer())
+    const paidBuf = Buffer.from(await filePaid.arrayBuffer())
+    fileBuf = Buffer.concat([freeBuf, paidBuf])
+    sourceHash = createHash('sha256').update(fileBuf).digest('hex')
+    fileName = `${freeName} + ${paidName}`
+    const bothPdf =
+      freeName.toLowerCase().endsWith('.pdf') && paidName.toLowerCase().endsWith('.pdf')
+    fileType = bothPdf ? 'pdf' : null
+    upstreamForm = new FormData()
+    upstreamForm.append('file_free', new Blob([new Uint8Array(freeBuf)]), freeName)
+    upstreamForm.append('file_paid', new Blob([new Uint8Array(paidBuf)]), paidName)
+    upstreamForm.append('instruction', typeof instruction === 'string' ? instruction : '')
+    upstreamForm.append('category', category)
+    upstreamForm.append('user_id', user.id)
+    // draft_id appended after insert below
+  } else {
+    // --- Single-file path (unchanged behaviour) ---
+    const file = fd.get('file')
+    if (!(file instanceof Blob)) {
+      return NextResponse.json({ error: 'file es requerido' }, { status: 400 })
+    }
+    fileName = (file as File).name || 'upload.bin'
+    fileType = fileName.toLowerCase().endsWith('.csv')
+      ? 'csv'
+      : fileName.toLowerCase().endsWith('.pdf')
+        ? 'pdf'
+        : null
+    fileBuf = Buffer.from(await file.arrayBuffer())
+    sourceHash = createHash('sha256').update(fileBuf).digest('hex')
+    upstreamForm = new FormData()
+    upstreamForm.append('file', new Blob([new Uint8Array(fileBuf)]), fileName)
+    upstreamForm.append('instruction', typeof instruction === 'string' ? instruction : '')
+    upstreamForm.append('category', category)
+    upstreamForm.append('user_id', user.id)
+    // draft_id appended after insert below
+  }
 
   const db = createAgentDBClient()
 
@@ -103,12 +148,7 @@ export async function POST(req: NextRequest) {
 
   const draftId = draft.id as string
 
-  // 3) Build upstream form (must await blob construction *before* returning)
-  const upstreamForm = new FormData()
-  upstreamForm.append('file', new Blob([fileBuf]), fileName)
-  upstreamForm.append('instruction', typeof instruction === 'string' ? instruction : '')
-  upstreamForm.append('category', category)
-  upstreamForm.append('user_id', user.id)
+  // 3) Finish building upstream form — draft_id available now
   upstreamForm.append('draft_id', draftId)
 
   // 4) Fire-and-forget kickoff. `after()` keeps the runtime alive after the
