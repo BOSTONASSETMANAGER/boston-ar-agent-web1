@@ -15,6 +15,7 @@ export const CATEGORIES = [
   'derivados',
   'prensa',
   'dolar-futuro',
+  'estrategia-rotacion',
 ] as const
 
 export type Category = typeof CATEGORIES[number]
@@ -36,6 +37,7 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   'derivados': 'Derivados',
   'prensa': 'Prensa / Informe Semanal',
   'dolar-futuro': 'Dólar Futuro',
+  'estrategia-rotacion': 'Estrategia de Rotación',
 }
 
 // access_level por categoría, espejo de CATEGORY_POLICY de boston-ar.
@@ -57,6 +59,7 @@ export const CATEGORY_POLICY: Record<Category, string> = {
   'derivados': '001',
   'prensa': '000',
   'dolar-futuro': '001',
+  'estrategia-rotacion': '000',
 }
 
 export function isCategory(v: unknown): v is Category {
@@ -94,6 +97,7 @@ export const AUTHOR_BY_CATEGORY: Record<Category, Author> = {
   'valor-razonable-extendido': 'Stefano Roatta',
   'analisis-fundamental': 'Stefano Roatta',
   'prensa': 'Equipo de Boston Asset Manager',
+  'estrategia-rotacion': 'Stefano Roatta',
 }
 
 export function getDefaultAuthor(category: Category): Author {
