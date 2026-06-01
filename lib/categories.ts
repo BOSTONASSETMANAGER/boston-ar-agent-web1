@@ -1,6 +1,7 @@
 export const CATEGORIES = [
   'renta-fija',
   'instrumento-del-dia',
+  'instrumento-del-dia-gratis',
   'renta-variable',
   'opciones',
   'earnings',
@@ -23,6 +24,7 @@ export type Category = typeof CATEGORIES[number]
 export const CATEGORY_LABELS: Record<Category, string> = {
   'renta-fija': 'Renta Fija',
   'instrumento-del-dia': 'Instrumento del Día',
+  'instrumento-del-dia-gratis': 'Instrumento del día (gratis)',
   'renta-variable': 'Renta Variable',
   'opciones': 'Opciones',
   'earnings': 'Earnings',
@@ -45,6 +47,7 @@ export const CATEGORY_LABELS: Record<Category, string> = {
 export const CATEGORY_POLICY: Record<Category, string> = {
   'renta-fija': '001',
   'instrumento-del-dia': '000',
+  'instrumento-del-dia-gratis': '000',
   'renta-variable': '001',
   'opciones': '001',
   'earnings': '001',
@@ -66,7 +69,11 @@ export function isCategory(v: unknown): v is Category {
   return typeof v === 'string' && (CATEGORIES as readonly string[]).includes(v)
 }
 
-export const DUAL_CATEGORIES: readonly Category[] = ['renta-variable', 'valor-razonable', 'instrumento-del-dia'] as const
+// Categorías cuyos informes tienen un PDF gratis + un PDF pago. Solamente
+// instrumento-del-dia y renta-variable. valor-razonable (común y extendido)
+// son single-file aunque la policy de boston-ar use extendedTier para gating
+// visual interno — eso se resuelve por separado, no exige doble upload.
+export const DUAL_CATEGORIES: readonly Category[] = ['renta-variable', 'instrumento-del-dia'] as const
 
 export function isDualCategory(c: Category | ''): boolean {
   return DUAL_CATEGORIES.includes(c as Category)
@@ -88,6 +95,7 @@ export type Author = typeof AUTHORS[number]
 // antes de publicar.
 export const AUTHOR_BY_CATEGORY: Record<Category, Author> = {
   'instrumento-del-dia': 'Gonzalo Gamba',
+  'instrumento-del-dia-gratis': 'Gonzalo Gamba',
   'renta-variable': 'Gonzalo Gamba',
   'macroeconomicos': 'Gonzalo Gamba',
   'trade-idea': 'Gonzalo Gamba',

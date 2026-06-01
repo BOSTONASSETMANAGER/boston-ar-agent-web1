@@ -63,6 +63,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
   const access_level = CATEGORY_POLICY[category]
 
+  // El generador "instrumento-del-dia-gratis" es una variante free-only del
+  // Instrumento del Día (un solo PDF, sin sección premium). Se publica bajo la
+  // categoría canónica del sitio para que boston-ar lo liste como "Instrumento
+  // del Día"; access_level (000) y autor salen de la variante.
+  const STORED_CATEGORY: Partial<Record<Category, Category>> = {
+    'instrumento-del-dia-gratis': 'instrumento-del-dia',
+  }
+  const storedCategory = STORED_CATEGORY[category] ?? category
+
   // Resolver author_name: override del body si es uno de los autores conocidos
   // o texto libre no vacío; fallback al default por categoría.
   const author_name: string = bodyAuthor
@@ -93,7 +102,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       slug,
       excerpt,
       html_content: draft.html_content,
-      category,
+      category: storedCategory,
       access_level,
       published: true,
       author_id: user.id,
