@@ -151,3 +151,25 @@
 .pill-offline { background: rgba(217, 66, 51, 0.12); color: #d94233; }
 .pill-pending { background: rgba(37, 99, 235, 0.12); color: var(--saas-accent); }
 .pill-published { background: rgba(5, 150, 105, 0.12); color: var(--saas-success); }
+
+/* Base Material Symbols helper. El <link> en layout.tsx aporta el @font-face;
+   esta clase mapea la familia + activa las ligaduras. Sin ella, el HTML
+   editorial (que usa class="material-symbols-outlined" a secas) muestra el
+   nombre de la ligadura como texto literal ("bar_chart", etc.) en el preview.
+   No fija font-size: lo controlan los estilos inline del HTML editorial. */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  font-feature-settings: 'liga';
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
