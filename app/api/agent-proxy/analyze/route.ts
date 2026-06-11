@@ -3,14 +3,13 @@ import { createHash } from 'crypto'
 import { createClient } from '@/lib/supabase/server'
 import { createAgentDBClient } from '@/lib/agent-db/server'
 import { callAgent } from '@/lib/agent-client'
+import { DUAL_CATEGORIES } from '@/lib/categories'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
 
 const DEDUP_WINDOW_MIN = 5
-
-const DUAL_CATEGORIES = ['renta-variable', 'valor-razonable', 'instrumento-del-dia'] as const
 
 async function requireAuthedRole() {
   const supabase = await createClient()
