@@ -62,7 +62,7 @@ export const CATEGORY_POLICY: Record<Category, string> = {
   'valor-razonable-extendido': '002',
   'analisis-fundamental': '002',
   'macroeconomicos': '000',
-  'sectoriales': '001',
+  'sectoriales': '000', // sección Sectoriales: acceso libre (gratis) por ahora
   'cer': '000',
   'lecaps': '000',
   'derivados': '001',
