@@ -44,11 +44,17 @@ export const CATEGORY_LABELS: Record<Category, string> = {
 
 // access_level por categoría, espejo de CATEGORY_POLICY de boston-ar.
 // 000 = público, 001 = premium, 002 = premium+.
+//
+// IMPORTANTE: las categorías DUALES (instrumento-del-dia, renta-variable) se
+// publican con access_level '000'. Su sección premium NO se gatea por
+// access_level sino por los markers `data-premium-content` que boston-ar oculta
+// en el render (lockInstrumentoPremiumBlock). Si se guardara '001', boston-ar
+// trata el informe como single-tier y bloquea TODO (incl. la sección gratis).
 export const CATEGORY_POLICY: Record<Category, string> = {
   'renta-fija': '001',
   'instrumento-del-dia': '000',
   'instrumento-del-dia-gratis': '000',
-  'renta-variable': '001',
+  'renta-variable': '000', // dual: base libre + cards data-premium-content
   'opciones': '001',
   'earnings': '001',
   'trade-idea': '001',
