@@ -98,6 +98,14 @@ export async function POST(req: NextRequest) {
     upstreamForm.append('instruction', typeof instruction === 'string' ? instruction : '')
     upstreamForm.append('category', category)
     upstreamForm.append('user_id', user.id)
+
+    // Optional image attachment, only for prensa (weekly press) reports.
+    const image = fd.get('image')
+    if (category === 'prensa' && image instanceof Blob) {
+      const imageName = (image as File).name || 'image.bin'
+      const imageBuf = Buffer.from(await image.arrayBuffer())
+      upstreamForm.append('image', new Blob([new Uint8Array(imageBuf)]), imageName)
+    }
     // draft_id appended after insert below
   }
 

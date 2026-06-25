@@ -73,6 +73,10 @@ export default function ChatComposer() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
 
+  // Optional image attachment (prensa only)
+  const imageInputRef = useRef<HTMLInputElement>(null)
+  const [image, setImage] = useState<File | null>(null)
+
   // Dual-mode state
   const fileInputFreeRef = useRef<HTMLInputElement>(null)
   const fileInputPaidRef = useRef<HTMLInputElement>(null)
@@ -93,6 +97,7 @@ export default function ChatComposer() {
 
   const selectedCategory = watch('category')
   const dual = isDualCategory(selectedCategory)
+  const isPrensa = selectedCategory === 'prensa'
 
   function handleCategoryChange(prev: Category | '', next: Category | '') {
     // Clear files when switching between dual and single modes
@@ -101,6 +106,15 @@ export default function ChatComposer() {
       setFileFree(null)
       setFilePaid(null)
     }
+    // Clear the optional image when leaving prensa
+    if (next !== 'prensa') {
+      setImage(null)
+    }
+  }
+
+  function onImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]
+    if (f) setImage(f)
   }
 
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -166,6 +180,9 @@ export default function ChatComposer() {
       }
       fd.append('instruction', values.instruction || '')
       fd.append('category', values.category)
+      if (image && values.category === 'prensa') {
+        fd.append('image', image)
+      }
 
       const res = await fetch('/api/agent-proxy/analyze', { method: 'POST', body: fd })
       const json: AnalyzeResponse = await res.json().catch(() => ({}))
@@ -177,6 +194,9 @@ export default function ChatComposer() {
       if (!json.draft_id) {
         throw new Error('Respuesta inválida del proxy (sin draft_id).')
       }
+
+      // Reset the optional image after a successful submit.
+      setImage(null)
 
       // Pasamos `?deduped=1` para que /drafts/[id] muestre el aviso de reuso.
       const qs = json.deduped ? '?deduped=1' : ''
@@ -262,6 +282,55 @@ export default function ChatComposer() {
             accept=".pdf,.csv"
             className="hidden"
             onChange={onFile}
+          />
+        </div>
+      )}
+
+      {isPrensa && (
+        <div>
+          <label className="mb-1 block text-sm font-medium">
+            Imagen <span style={{ color: 'var(--saas-muted)' }}>(opcional)</span>
+          </label>
+          {image ? (
+            <div
+              className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm"
+              style={{ borderColor: 'var(--saas-border)', background: '#fff' }}
+            >
+              <span className="flex items-center gap-2 truncate">
+                <FileText size={16} style={{ color: 'var(--saas-accent)' }} />
+                <span className="truncate">{image.name}</span>
+                <span className="shrink-0 text-xs" style={{ color: 'var(--saas-muted)' }}>
+                  {(image.size / 1024).toFixed(1)} KB
+                </span>
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setImage(null)
+                  if (imageInputRef.current) imageInputRef.current.value = ''
+                }}
+                className="shrink-0 text-xs font-medium text-red-600 hover:underline"
+              >
+                quitar
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => imageInputRef.current?.click()}
+              className="flex w-full items-center justify-center gap-2 rounded-md border border-dashed px-3 py-2 text-sm transition hover:bg-slate-50"
+              style={{ borderColor: 'var(--saas-border)' }}
+            >
+              <Upload size={16} style={{ color: 'var(--saas-muted)' }} />
+              Adjuntar una imagen (PNG, JPG, WEBP o GIF)
+            </button>
+          )}
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            className="hidden"
+            onChange={onImage}
           />
         </div>
       )}
